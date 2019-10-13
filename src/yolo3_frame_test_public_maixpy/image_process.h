@@ -30,4 +30,7 @@ typedef struct
 int image_init(image_t *image);
 void image_deinit(image_t *image);
 
+int image_crop(image_t *src, image_t *dst, int x, int y, int w, int h, int stride);
+
+
 #endif /* _IMAGE_PROCESS_H */

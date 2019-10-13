@@ -260,7 +260,7 @@ int main(void) {
     image_init(&kpu_image);
     display_image.pixel= 2;
     display_image.width= 320;
-    display_image.height= 224;
+    display_image.height= 240;
     image_init(&display_image);
     dvp_set_ai_addr((uint32_t)kpu_image.addr, (uint32_t)(kpu_image.addr + 320 * 224),
                     (uint32_t)(kpu_image.addr + 320 * 224 * 2));
@@ -280,13 +280,13 @@ int main(void) {
     }
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
-    detect_rl0.threshold= 0.3;
+    detect_rl0.threshold= 0.003;
     detect_rl0.nms_value= 0.3;
     region_layer_init(&detect_rl0, 10, 7, 24, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
-    detect_rl1.threshold= 0.3;
+    detect_rl1.threshold= 0.003;
     detect_rl1.nms_value= 0.3;
     region_layer_init(&detect_rl1, 20, 14, 24, 320, 224);
 
@@ -319,7 +319,7 @@ int main(void) {
         region_layer_run(&detect_rl1, NULL);
 
         /* display result */
-        lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
+        lcd_draw_picture(0, 0, 320, 240, (uint32_t *)display_image.addr);
         
         /* run key point detect */
         region_layer_draw_boxes(&detect_rl0, drawboxes);
