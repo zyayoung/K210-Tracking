@@ -43,15 +43,15 @@ static obj_info_t face_detect_info;
 // NOTE x,y
 
 static float layer0_anchor[ANCHOR_NUM * 2]= {
-    46/320., 16/240.,
-    31/320., 24/240.,
-    21/320., 30/240.
+     16/224.,46/320.,
+     24/224.,31/320.,
+     30/224.,21/320.
 };
 
 static float layer1_anchor[ANCHOR_NUM * 2]= {
-    36/320., 15/240.,
-    21/320., 22/240.,
-    26/320., 16/240.
+     15/224.,36/320.,
+     22/224.,21/320.,
+     16/224.,26/320.
 };
 
 #define LOAD_KMODEL_FROM_FLASH 1
@@ -280,14 +280,14 @@ int main(void) {
     }
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
-    detect_rl0.threshold= 0.003;
+    detect_rl0.threshold= 0.1;
     detect_rl0.nms_value= 0.3;
     region_layer_init(&detect_rl0, 10, 7, 24, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
-    detect_rl1.threshold= 0.003;
-    detect_rl1.nms_value= 0.3;
+    detect_rl1.threshold= 0.1;
+        detect_rl1.nms_value= 0.3;
     region_layer_init(&detect_rl1, 20, 14, 24, 320, 224);
 
     /* enable global interrupt */
@@ -299,8 +299,7 @@ int main(void) {
         g_dvp_finish_flag= 0;
         dvp_clear_interrupt(DVP_STS_FRAME_START | DVP_STS_FRAME_FINISH);
         dvp_config_interrupt(DVP_CFG_START_INT_ENABLE | DVP_CFG_FINISH_INT_ENABLE, 1);
-        while (g_dvp_finish_flag == 0)
-            ;
+        while (g_dvp_finish_flag == 0);
         /* run face detect */
         g_ai_done_flag= 0;
         kpu_run_kmodel(&face_detect_task, kpu_image.addr, DMAC_CHANNEL5, ai_done, NULL);
@@ -318,13 +317,14 @@ int main(void) {
         detect_rl1.input= output1;
         region_layer_run(&detect_rl1, NULL);
 
+        do_more_nms_sort(&detect_rl0, &detect_rl1, 0.3);
+
         /* display result */
         lcd_draw_picture(0, 0, 320, 240, (uint32_t *)display_image.addr);
-        
         /* run key point detect */
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
-        // sleep(10);
+        // sleep(1);
     }
     while (1) {}
 }

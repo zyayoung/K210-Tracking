@@ -46,4 +46,5 @@ int region_layer_init(region_layer_t *rl, int width, int height, int channels, i
 void region_layer_deinit(region_layer_t *rl);
 void region_layer_run(region_layer_t *rl, obj_info_t *obj_info);
 void region_layer_draw_boxes(region_layer_t *rl, callback_draw_box callback);
+void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2, float score_threshold);
 #endif // _REGION_LAYER

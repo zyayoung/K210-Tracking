@@ -13,7 +13,8 @@ typedef struct {
 typedef struct {
     int class;
     int index;
-    float **probs;
+    float *probs;
+    box_t *box;
 } sortable_box_t;
 
 int region_layer_init(region_layer_t *rl, int width, int height, int channels, int origin_width,
@@ -213,10 +214,10 @@ static void get_region_boxes(region_layer_t *rl, float *predictions, float **pro
     correct_region_boxes(rl, boxes);
 }
 
-static int nms_comparator(void *pa, void *pb) {
+static int nms_comparator(const void *pa, const void *pb) {
     sortable_box_t a= *(sortable_box_t *)pa;
     sortable_box_t b= *(sortable_box_t *)pb;
-    float diff= a.probs[a.index][b.class] - b.probs[b.index][b.class];
+    float diff= a.probs[b.class] - b.probs[b.class];
 
     if (diff < 0)
         return 1;
@@ -225,33 +226,31 @@ static int nms_comparator(void *pa, void *pb) {
     return 0;
 }
 
-static float overlap(float x1, float w1, float x2, float w2) {
+float overlap(float x1, float w1, float x2, float w2) {
     float l1= x1 - w1 / 2;
     float l2= x2 - w2 / 2;
-    float left= l1 > l2 ? l1 : l2;
+    float left= (l1 > l2) ? l1 : l2;
     float r1= x1 + w1 / 2;
     float r2= x2 + w2 / 2;
-    float right= r1 < r2 ? r1 : r2;
-
-    return right - left;
+    float right= (r1 < r2) ? r1 : r2;
+    return (right - left) > 0 ? right - left : 0;
 }
 
-static float box_intersection(box_t a, box_t b) {
+float box_intersection(box_t a, box_t b) {
     float w= overlap(a.x, a.w, b.x, b.w);
     float h= overlap(a.y, a.h, b.y, b.h);
-
-    if (w < 0 || h < 0) return 0;
     return w * h;
 }
 
-static float box_union(box_t a, box_t b) {
+float box_union(box_t a, box_t b) {
     float i= box_intersection(a, b);
     float u= a.w * a.h + b.w * b.h - i;
-
     return u;
 }
 
-static float box_iou(box_t a, box_t b) { return box_intersection(a, b) / box_union(a, b); }
+float box_iou(box_t a, box_t b) {
+    return box_intersection(a, b) / box_union(a, b);
+}
 
 static void do_nms_sort(region_layer_t *rl, box_t *boxes, float **probs) {
     uint32_t boxes_number= rl->boxes_number;
@@ -263,7 +262,8 @@ static void do_nms_sort(region_layer_t *rl, box_t *boxes, float **probs) {
     for (i= 0; i < boxes_number; ++i) {
         s[i].index= i;
         s[i].class= 0;
-        s[i].probs= probs;
+        s[i].probs= probs[i];
+        s[i].box= boxes+i;
     }
 
     for (k= 0; k < classes; ++k) {
@@ -321,7 +321,7 @@ static void region_layer_output(region_layer_t *rl, obj_info_t *obj_info) {
     obj_info->obj_number= obj_number;
 }
 
-void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2) {
+void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2, float score_threshold) {
     box_t *boxes1= rl1->boxes, *boxes2= rl2->boxes;
     float **probs1= rl1->probs, **probs2= rl2->probs;
 
@@ -334,41 +334,32 @@ void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2) {
     for (i= 0; i < rl1->boxes_number; ++i) {
         s[i].index= i;
         s[i].class= 0;
-        s[i].probs= probs1;
+        s[i].probs= probs1[i];
+        s[i].box= boxes1+i;
     }
 
     for (i= 0; i < rl2->boxes_number; ++i) {
         s[i + rl1->boxes_number].index= i + rl1->boxes_number;
         s[i + rl1->boxes_number].class= 0;
-        s[i + rl1->boxes_number].probs= probs2;
+        s[i + rl1->boxes_number].probs= probs2[i];
+        s[i + rl1->boxes_number].box= boxes2+i;
     }
 
     for (k= 0; k < classes; ++k) {
         for (i= 0; i < boxes_number; ++i) { s[i].class= k; }
-        printf("---------strat qsort\n");
         qsort(s, boxes_number, sizeof(sortable_box_t), nms_comparator);
-        printf("---------end qsort\n");
 
         for (i= 0; i < boxes_number; ++i) {
-            if (s[i].index < rl1->anchor_number) {
-                if (probs1[s[i].index][k] == 0) continue;
-            } else {
-                if (probs2[s[i].index][k] == 0) continue;
-            }
+            if (s[i].probs[k] < score_threshold) continue;
 
-            box_t a= s[i].index < rl1->anchor_number ? boxes1[s[i].index]
-                                                     : boxes2[s[i].index - rl1->anchor_number];
+            box_t a= *(s[i].box);
 
             for (j= i + 1; j < boxes_number; ++j) {
-                box_t b= s[j].index < rl1->anchor_number ? boxes1[s[j].index]
-                                                         : boxes2[s[j].index - rl1->anchor_number];
+                if (s[j].probs[k] < score_threshold) continue;
+                box_t b= *(s[j].box);
 
                 if (box_iou(a, b) > nms_value) {
-                    if (s[j].index < rl1->anchor_number) {
-                        probs1[s[j].index][k]= 0;
-                    } else {
-                        probs2[s[j].index - rl1->anchor_number][k]= 0;
-                    }
+                    s[j].probs[k]= 0;      
                 }
             }
         }
@@ -378,8 +369,8 @@ void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2) {
 void region_layer_run(region_layer_t *rl, obj_info_t *obj_info) {
     forward_region_layer(rl);
     get_region_boxes(rl, rl->output, rl->probs, rl->boxes);
-    do_nms_sort(rl, rl->boxes, rl->probs);
-    // region_layer_output(rl, obj_info);
+    // do_nms_sort(rl, rl->boxes, rl->probs);
+    region_layer_output(rl, obj_info);
 }
 
 void region_layer_draw_boxes(region_layer_t *rl, callback_draw_box callback) {
