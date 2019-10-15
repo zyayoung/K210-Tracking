@@ -43,15 +43,15 @@ static obj_info_t face_detect_info;
 // NOTE x,y
 
 static float layer0_anchor[ANCHOR_NUM * 2]= {
-     16/224.,46/320.,
-     24/224.,31/320.,
-     30/224.,21/320.
+    48/320., 48/224.,
+    36/320., 72/224.,
+    72/320., 36/224.
 };
 
 static float layer1_anchor[ANCHOR_NUM * 2]= {
-     15/224.,36/320.,
-     22/224.,21/320.,
-     16/224.,26/320.
+    24/320., 32/224.,
+    18/320., 36/224.,
+    36/320., 18/224.
 };
 
 #define LOAD_KMODEL_FROM_FLASH 1
@@ -256,14 +256,14 @@ int main(void) {
 
     kpu_image.pixel= 3;
     kpu_image.width= 320;
-    kpu_image.height= 224;
+    kpu_image.height= 240;
     image_init(&kpu_image);
     display_image.pixel= 2;
     display_image.width= 320;
     display_image.height= 240;
     image_init(&display_image);
-    dvp_set_ai_addr((uint32_t)kpu_image.addr, (uint32_t)(kpu_image.addr + 320 * 224),
-                    (uint32_t)(kpu_image.addr + 320 * 224 * 2));
+    dvp_set_ai_addr((uint32_t)kpu_image.addr + 320 * 224 * 2, (uint32_t)(kpu_image.addr + 320 * 224),
+                    (uint32_t)(kpu_image.addr));
     dvp_set_display_addr((uint32_t)display_image.addr);
     dvp_config_interrupt(DVP_CFG_START_INT_ENABLE | DVP_CFG_FINISH_INT_ENABLE, 0);
     dvp_disable_auto();
@@ -280,15 +280,15 @@ int main(void) {
     }
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
-    detect_rl0.threshold= 0.1;
+    detect_rl0.threshold= 0.6;
     detect_rl0.nms_value= 0.3;
-    region_layer_init(&detect_rl0, 10, 7, 24, 320, 224);
+    region_layer_init(&detect_rl0, 10*2, 7*2, 24, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
-    detect_rl1.threshold= 0.1;
-        detect_rl1.nms_value= 0.3;
-    region_layer_init(&detect_rl1, 20, 14, 24, 320, 224);
+    detect_rl1.threshold= 0.6;
+    detect_rl1.nms_value= 0.3;
+    region_layer_init(&detect_rl1, 20*2, 14*2, 24, 320, 224);
 
     /* enable global interrupt */
     sysctl_enable_irq();

@@ -811,3 +811,4 @@ kendryte-standalone-demo-bak
 !src/hello_world
 /CMakeSettings.json
 /build_i
+src/yolo3_frame_test_public_maixpy/yolo3_frame_test_public_maixpy

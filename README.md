@@ -43,7 +43,7 @@ Open a Windows Powershell, cd to Project directory.
 $env:Path="E:\kendryte-toolchain\bin;C:\Program Files\CMake\bin" +  $env:Path
 
 mkdir build && cd build
-cmake -G "MinGW Makefiles" ../../../..
+cmake -G "MinGW Makefiles" .. -DPROJ=yolo3_frame_test_public_maixpy -DTOOLCHAIN=
 make
 ```
 

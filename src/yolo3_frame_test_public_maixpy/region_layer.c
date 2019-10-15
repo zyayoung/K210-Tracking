@@ -329,7 +329,11 @@ void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2, float score_thre
     uint32_t classes= rl1->classes;
     float nms_value= rl1->nms_value;
     int i, j, k;
-    sortable_box_t s[boxes_number];
+    sortable_box_t* s = malloc(boxes_number * sizeof(sortable_box_t));
+    if (s == NULL) {
+        printf("Falied to malloc %ldK memory.\n", boxes_number * sizeof(sortable_box_t)/1024);
+        return;
+    }
 
     for (i= 0; i < rl1->boxes_number; ++i) {
         s[i].index= i;
@@ -350,12 +354,12 @@ void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2, float score_thre
         qsort(s, boxes_number, sizeof(sortable_box_t), nms_comparator);
 
         for (i= 0; i < boxes_number; ++i) {
-            if (s[i].probs[k] < score_threshold) continue;
+            if (s[i].probs[k] ==0) continue;
 
             box_t a= *(s[i].box);
 
             for (j= i + 1; j < boxes_number; ++j) {
-                if (s[j].probs[k] < score_threshold) continue;
+                if (s[j].probs[k] ==0) continue;
                 box_t b= *(s[j].box);
 
                 if (box_iou(a, b) > nms_value) {
@@ -364,6 +368,7 @@ void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2, float score_thre
             }
         }
     }
+    free(s);
 }
 
 void region_layer_run(region_layer_t *rl, obj_info_t *obj_info) {
