@@ -280,13 +280,13 @@ int main(void) {
     }
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
-    detect_rl0.threshold= 0.;
+    detect_rl0.threshold= 0.3;
     detect_rl0.nms_value= 0.3;
     region_layer_init(&detect_rl0, 10*2, 7*2, 18, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
-    detect_rl1.threshold= 0.;
+    detect_rl1.threshold= 0.3;
     detect_rl1.nms_value= 0.3;
     region_layer_init(&detect_rl1, 20*2, 14*2, 18, 320, 224);
 
