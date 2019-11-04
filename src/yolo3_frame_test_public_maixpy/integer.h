@@ -13,6 +13,7 @@ typedef unsigned __int64 QWORD;
 
 
 #else			/* Embedded platform */
+#include <stdint.h>
 
 /* These types MUST be 16-bit or 32-bit */
 typedef int				INT;
@@ -28,10 +29,10 @@ typedef unsigned short	WCHAR;
 
 /* These types MUST be 32-bit */
 typedef long			LONG;
-typedef unsigned long	DWORD;
+typedef uint32_t    	DWORD;
 
 /* This type MUST be 64-bit (Remove this for C89 compatibility) */
-typedef unsigned long long QWORD;
+typedef uint64_t        QWORD;
 
 #endif
 

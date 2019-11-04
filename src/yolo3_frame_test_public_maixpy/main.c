@@ -17,6 +17,8 @@
 #include "w25qxx.h"
 #include "sdcard.h"
 #include "ff.h"
+#include "jfif.h"
+#include "bmp.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -221,6 +223,11 @@ static int fs_init(void)
     return status;
 }
 
+static int ALIGN(int x, int y) {
+    // y must be a power of 2.
+    return (x + y - 1) & ~(y - 1);
+}
+
 int main(void) {
     /* Set CPU and dvp clk */
     sysctl_pll_set_freq(SYSCTL_PLL0, PLL0_OUTPUT_FREQ);
@@ -284,6 +291,14 @@ int main(void) {
     display_image.width= 320;
     display_image.height= 224;
     image_init(&display_image);
+
+    BMP bp = {0};
+    void *jfif = NULL;
+    bp.width  = kpu_image.width;
+    bp.height = kpu_image.height;
+    bp.stride = ALIGN(kpu_image.width * 3, 4);
+    bp.pdata = kpu_image.addr;
+
     dvp_set_ai_addr((uint32_t)kpu_image.addr, (uint32_t)(kpu_image.addr + 320 * 224),
                     (uint32_t)(kpu_image.addr + 320 * 224 * 2));
     dvp_set_display_addr((uint32_t)display_image.addr);
@@ -317,20 +332,28 @@ int main(void) {
         printf("FAT32 err\n");
         enable_sd_card = 0;
     }
+    int path_round=0;
+    FIL vid_file;
     if(enable_sd_card){
         FRESULT ret = FR_OK;
 
-        ret = f_mkdir("log");
+        f_mkdir("log");
+        f_mkdir("jpg");
 
         /* sd read write test */
         char path[32];
         FILINFO v_fileinfo;
-        for(int round=0; ;round++){
-            sprintf(path, "log/%d.txt", round);
+        for(path_round=0; ;path_round++){
+            sprintf(path, "log/%d.txt", path_round);
             if((ret = f_stat(path, &v_fileinfo)) != FR_OK) break;
         }
 
         if ((ret = f_open(&file, path, FA_CREATE_ALWAYS | FA_WRITE)) != FR_OK) {
+            printf("open file %s err[%d]\n", path, ret);
+            enable_sd_card = 0;
+        }
+        sprintf(path, "log/%d.mjpeg", path_round);
+        if ((ret = f_open(&vid_file, path, FA_CREATE_ALWAYS | FA_WRITE)) != FR_OK) {
             printf("open file %s err[%d]\n", path, ret);
             enable_sd_card = 0;
         }
@@ -391,6 +414,9 @@ int main(void) {
             sprintf(str_buf, "%02ld:%02ld:%02ld", sec/3600, (sec/60)%60, sec%60);
             lcd_clear_area(BLACK, 240, 224, 320, 240);
             lcd_draw_string(240, 224, str_buf, RED);
+            jfif = jfif_encode(&bp);
+            jfif_write(jfif, &vid_file);
+            jfif_free(jfif);
         }
         frame_count++;
     }

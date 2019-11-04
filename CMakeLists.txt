@@ -15,6 +15,8 @@ endif ()
 cmake_minimum_required(VERSION 3.0)
 include(./cmake/common.cmake)
 project(${PROJ} C CXX ASM)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
 
 # config self use headers
 include(./cmake/macros.internal.cmake)
