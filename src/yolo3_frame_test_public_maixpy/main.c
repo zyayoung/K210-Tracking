@@ -38,7 +38,7 @@ volatile uint8_t g_dvp_finish_flag;
 
 static image_t kpu_image, display_image;
 
-kpu_model_context_t face_detect_task;
+kpu_model_context_t detect_task;
 static region_layer_t detect_rl0, detect_rl1;
 #define ANCHOR_NUM 3
 // NOTE x,y
@@ -161,9 +161,7 @@ class_lable_t class_lable[CLASS_NUMBER]= {
     {"sheep", GREEN},     {"sofa", GREEN},      {"train", GREEN},       {"tvmonitor", 0xF9B6}};
 
 static uint32_t lable_string_draw_ram[115 * 16 * 8 / 2];
-#endif
 
-#if (CLASS_NUMBER > 1)
 static void lable_init(void) {
     uint8_t index;
 
@@ -199,7 +197,7 @@ static void drawboxes(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32
 }
 
 void rgb888_to_lcd(uint8_t *src, uint16_t *dest, size_t width, size_t height) {
-    size_t i, chn_size= width * height;
+    size_t chn_size= width * height;
     for (size_t i= 0; i < width * height; i++) {
         uint8_t r= src[i];
         uint8_t g= src[chn_size + i];
@@ -211,23 +209,6 @@ void rgb888_to_lcd(uint8_t *src, uint16_t *dest, size_t width, size_t height) {
     }
 }
 
-static int sdcard_init(void)
-{
-    uint8_t status;
-
-    printf("/******************sdcard test*****************/\n");
-    status = sd_init();
-    printf("sd init %d\n", status);
-    if (status != 0)
-    {
-        return status;
-    }
-
-    printf("card info status %d\n", status);
-    printf("CardCapacity:%ld\n", cardinfo.CardCapacity);
-    printf("CardBlockSize:%d\n", cardinfo.CardBlockSize);
-    return 0;
-}
 
 static int fs_init(void)
 {
@@ -237,13 +218,10 @@ static int fs_init(void)
     printf("/********************fs test*******************/\n");
     status = f_mount(&sdcard_fs, _T("0:"), 1);
     printf("mount sdcard:%d\n", status);
-    if (status != FR_OK)
-        return status;
-    return 0;
+    return status;
 }
 
 int main(void) {
-    int sta= 0;
     /* Set CPU and dvp clk */
     sysctl_pll_set_freq(SYSCTL_PLL0, PLL0_OUTPUT_FREQ);
     sysctl_pll_set_freq(SYSCTL_PLL1, PLL1_OUTPUT_FREQ);
@@ -317,22 +295,20 @@ int main(void) {
     plic_irq_register(IRQN_DVP_INTERRUPT, dvp_irq, NULL);
     plic_irq_enable(IRQN_DVP_INTERRUPT);
 
-    /* init face detect model */
-    if (kpu_load_kmodel(&face_detect_task, model_data) != 0) {
+    /* init detect model */
+    if (kpu_load_kmodel(&detect_task, model_data) != 0) {
         printf("\nmodel init error\n");
         while (1) {};
     }
     FIL file;
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
-    detect_rl0.threshold= 0.3;
     detect_rl0.nms_value= 0.3;
     detect_rl0.logfile = &file;
     region_layer_init(&detect_rl0, 10*2, 7*2, 18, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
-    detect_rl1.threshold= 0.3;
     detect_rl1.nms_value= 0.3;
     detect_rl1.logfile = &file;
     region_layer_init(&detect_rl1, 20*2, 14*2, 18, 320, 224);
@@ -341,7 +317,7 @@ int main(void) {
     sysctl_enable_irq();
 
     /* SD card init */
-    if(sdcard_init())
+    if(sd_init())
     {
         printf("SD card err\n");
         return -1;
@@ -360,11 +336,10 @@ int main(void) {
     else
         printf("Mkdir %s err [%d]\n", dir, ret);
 
-    char path[32]; // = "log/test.txt";
-    printf("/*******************sd read write test*******************/\n");
-    // uint32_t v_ret_len = 0;
+    /* sd read write test */
+    char path[32];
+    FILINFO v_fileinfo;
     for(int round=0; ;round++){
-        FILINFO v_fileinfo;
         sprintf(path, "log/%d.txt", round);
         if((ret = f_stat(path, &v_fileinfo)) != FR_OK) break;
     }
@@ -372,10 +347,6 @@ int main(void) {
     if ((ret = f_open(&file, path, FA_CREATE_ALWAYS | FA_WRITE)) != FR_OK) {
         printf("open file %s err[%d]\n", path, ret);
         return ret;
-    }
-    else
-    {
-        printf("Open %s ok\n", path);
     }
 
     /* system start */
@@ -387,16 +358,17 @@ int main(void) {
         dvp_clear_interrupt(DVP_STS_FRAME_START | DVP_STS_FRAME_FINISH);
         dvp_config_interrupt(DVP_CFG_START_INT_ENABLE | DVP_CFG_FINISH_INT_ENABLE, 1);
         while (g_dvp_finish_flag == 0);
-        /* run face detect */
+
+        /* run detection */
         g_ai_done_flag= 0;
-        kpu_run_kmodel(&face_detect_task, kpu_image.addr, DMAC_CHANNEL5, ai_done, NULL);
+        kpu_run_kmodel(&detect_task, kpu_image.addr, DMAC_CHANNEL5, ai_done, NULL);
         while (!g_ai_done_flag) {};
         float *output0, *output1;
         size_t output_size0, output_size1;
 
-        // NOTE output_size 是字节， float 是4字节
-        sta= kpu_get_output(&face_detect_task, 0, (uint8_t **)&output0, &output_size0);
-        sta= kpu_get_output(&face_detect_task, 1, (uint8_t **)&output1, &output_size1);
+        // NOTE output_size in bytes
+        kpu_get_output(&detect_task, 0, (uint8_t **)&output0, &output_size0);
+        kpu_get_output(&detect_task, 1, (uint8_t **)&output1, &output_size1);
 
         detect_rl0.input= output0;
         region_layer_run(&detect_rl0, NULL);
@@ -407,12 +379,11 @@ int main(void) {
 
         /* display result */
         lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
-        /* run key point detect */
+
         f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
         if((frame_count++) % 32 == 0) f_sync(&file);
-        // sleep(1);
     }
     while (1) {}
 }
