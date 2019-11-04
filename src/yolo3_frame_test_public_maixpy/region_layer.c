@@ -397,7 +397,7 @@ void region_layer_draw_boxes(region_layer_t *rl, callback_draw_box callback) {
             callback(x1, y1, x2, y2, class, prob);
             char log_buf[32];
             sprintf(log_buf, "%d %d %d %d %f\n", x1, y1, x2, y2, prob);
-            f_printf(rl->logfile, log_buf);
+            if(rl->logfile != NULL) f_printf(rl->logfile, log_buf);
         }
     }
 }

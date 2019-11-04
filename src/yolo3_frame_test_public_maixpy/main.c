@@ -17,7 +17,7 @@
 #include "w25qxx.h"
 #include "sdcard.h"
 #include "ff.h"
-// #include <aiimg.h>
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -301,56 +301,61 @@ int main(void) {
         while (1) {};
     }
     FIL file;
-    detect_rl0.anchor_number= ANCHOR_NUM;
-    detect_rl0.anchor= layer0_anchor;
-    detect_rl0.nms_value= 0.3;
-    detect_rl0.logfile = &file;
-    region_layer_init(&detect_rl0, 10*2, 7*2, 18, 320, 224);
-
-    detect_rl1.anchor_number= ANCHOR_NUM;
-    detect_rl1.anchor= layer1_anchor;
-    detect_rl1.nms_value= 0.3;
-    detect_rl1.logfile = &file;
-    region_layer_init(&detect_rl1, 20*2, 14*2, 18, 320, 224);
 
     /* enable global interrupt */
     sysctl_enable_irq();
 
     /* SD card init */
+    int enable_sd_card=1;
     if(sd_init())
     {
         printf("SD card err\n");
-        return -1;
+        enable_sd_card = 0;
     }
     if(fs_init())
     {
         printf("FAT32 err\n");
-        return -1;
+        enable_sd_card = 0;
     }
-    FRESULT ret = FR_OK;
+    if(enable_sd_card){
+        FRESULT ret = FR_OK;
 
-    char *dir = "log";
-    ret = f_mkdir(dir);
-    if(ret == FR_OK)
-        printf("Mkdir %s ok\n", dir);
-    else
-        printf("Mkdir %s err [%d]\n", dir, ret);
+        char *dir = "log";
+        ret = f_mkdir(dir);
+        if(ret == FR_OK)
+            printf("Mkdir %s ok\n", dir);
+        else
+            printf("Mkdir %s err [%d]\n", dir, ret);
 
-    /* sd read write test */
-    char path[32];
-    FILINFO v_fileinfo;
-    for(int round=0; ;round++){
-        sprintf(path, "log/%d.txt", round);
-        if((ret = f_stat(path, &v_fileinfo)) != FR_OK) break;
+        /* sd read write test */
+        char path[32];
+        FILINFO v_fileinfo;
+        for(int round=0; ;round++){
+            sprintf(path, "log/%d.txt", round);
+            if((ret = f_stat(path, &v_fileinfo)) != FR_OK) break;
+        }
+
+        if ((ret = f_open(&file, path, FA_CREATE_ALWAYS | FA_WRITE)) != FR_OK) {
+            printf("open file %s err[%d]\n", path, ret);
+            enable_sd_card = 0;
+        }
     }
 
-    if ((ret = f_open(&file, path, FA_CREATE_ALWAYS | FA_WRITE)) != FR_OK) {
-        printf("open file %s err[%d]\n", path, ret);
-        return ret;
-    }
+    detect_rl0.anchor_number= ANCHOR_NUM;
+    detect_rl0.anchor= layer0_anchor;
+    detect_rl0.threshold= 0.3;
+    detect_rl0.logfile = enable_sd_card ? &file : NULL;
+    region_layer_init(&detect_rl0, 10*2, 7*2, 18, 320, 224);
+
+    detect_rl1.anchor_number= ANCHOR_NUM;
+    detect_rl1.anchor= layer1_anchor;
+    detect_rl1.threshold= 0.3;
+    detect_rl1.logfile = enable_sd_card ? &file : NULL;
+    region_layer_init(&detect_rl1, 20*2, 14*2, 18, 320, 224);
 
     /* system start */
     printf("System start\n");
+    if(!enable_sd_card) lcd_draw_string(10, 224, "NO SDCARD", RED);
     uint32_t frame_count=0;
     while (1)
     {
@@ -380,10 +385,10 @@ int main(void) {
         /* display result */
         lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
 
-        f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
+        if(enable_sd_card) f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
-        if((frame_count++) % 32 == 0) f_sync(&file);
+        if(enable_sd_card && (frame_count++) % 32 == 0) f_sync(&file);
     }
     while (1) {}
 }
