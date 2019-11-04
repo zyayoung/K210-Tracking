@@ -2,6 +2,7 @@
 #define _REGION_LAYER
 
 #include "kpu.h"
+#include "ff.h"
 #include <stdint.h>
 
 typedef struct {
@@ -36,6 +37,7 @@ typedef struct {
     float *output;
     float *probs_buf;
     float **probs;
+    FIL *logfile;
 } region_layer_t;
 
 typedef void (*callback_draw_box)(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2,

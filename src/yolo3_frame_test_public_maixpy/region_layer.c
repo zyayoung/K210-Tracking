@@ -375,7 +375,7 @@ void region_layer_run(region_layer_t *rl, obj_info_t *obj_info) {
     forward_region_layer(rl);
     get_region_boxes(rl, rl->output, rl->probs, rl->boxes);
     // do_nms_sort(rl, rl->boxes, rl->probs);
-    region_layer_output(rl, obj_info);
+    // region_layer_output(rl, obj_info);
 }
 
 void region_layer_draw_boxes(region_layer_t *rl, callback_draw_box callback) {
@@ -395,6 +395,9 @@ void region_layer_draw_boxes(region_layer_t *rl, callback_draw_box callback) {
             uint32_t x2= b->x * image_width + (b->w * image_width / 2);
             uint32_t y2= b->y * image_height + (b->h * image_height / 2);
             callback(x1, y1, x2, y2, class, prob);
+            char log_buf[32];
+            sprintf(log_buf, "%d %d %d %d %f\n", x1, y1, x2, y2, prob);
+            f_printf(rl->logfile, log_buf);
         }
     }
 }

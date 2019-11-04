@@ -15,6 +15,8 @@
 #include "uarths.h"
 #include "utils.h"
 #include "w25qxx.h"
+#include "sdcard.h"
+#include "ff.h"
 // #include <aiimg.h>
 #include <math.h>
 #include <stdio.h>
@@ -38,7 +40,6 @@ static image_t kpu_image, display_image;
 
 kpu_model_context_t face_detect_task;
 static region_layer_t detect_rl0, detect_rl1;
-static obj_info_t face_detect_info;
 #define ANCHOR_NUM 3
 // NOTE x,y
 
@@ -79,6 +80,12 @@ static int dvp_irq(void *ctx) {
 
 static void io_mux_init(void) {
 #if BOARD_LICHEEDAN
+    /* SD card */
+    fpioa_set_function(27, FUNC_SPI1_SCLK);
+    fpioa_set_function(28, FUNC_SPI1_D0);
+    fpioa_set_function(26, FUNC_SPI1_D1);
+    fpioa_set_function(29, FUNC_GPIOHS7);
+
     /* Init DVP IO map and function settings */
     fpioa_set_function(42, FUNC_CMOS_RST);
     fpioa_set_function(44, FUNC_CMOS_PWDN);
@@ -97,6 +104,12 @@ static void io_mux_init(void) {
 
     sysctl_set_spi0_dvp_data(1);
 #else
+    /* SD card */
+    fpioa_set_function(29, FUNC_SPI1_SCLK);
+    fpioa_set_function(30, FUNC_SPI1_D0);
+    fpioa_set_function(31, FUNC_SPI1_D1);
+	fpioa_set_function(32, FUNC_GPIOHS7);
+
     /* Init DVP IO map and function settings */
     fpioa_set_function(11, FUNC_CMOS_RST);
     fpioa_set_function(13, FUNC_CMOS_PWDN);
@@ -150,8 +163,8 @@ class_lable_t class_lable[CLASS_NUMBER]= {
 static uint32_t lable_string_draw_ram[115 * 16 * 8 / 2];
 #endif
 
-static void lable_init(void) {
 #if (CLASS_NUMBER > 1)
+static void lable_init(void) {
     uint8_t index;
 
     class_lable[0].height= 16;
@@ -166,8 +179,8 @@ static void lable_init(void) {
         lcd_ram_draw_string(class_lable[index].str, class_lable[index].ptr, BLACK,
                             class_lable[index].color);
     }
-#endif
 }
+#endif
 
 static void drawboxes(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t class,
                       float prob) {
@@ -196,6 +209,37 @@ void rgb888_to_lcd(uint8_t *src, uint16_t *dest, size_t width, size_t height) {
         size_t d_i= i % 2 ? (i - 1) : (i + 1);
         dest[d_i]= rgb;
     }
+}
+
+static int sdcard_init(void)
+{
+    uint8_t status;
+
+    printf("/******************sdcard test*****************/\n");
+    status = sd_init();
+    printf("sd init %d\n", status);
+    if (status != 0)
+    {
+        return status;
+    }
+
+    printf("card info status %d\n", status);
+    printf("CardCapacity:%ld\n", cardinfo.CardCapacity);
+    printf("CardBlockSize:%d\n", cardinfo.CardBlockSize);
+    return 0;
+}
+
+static int fs_init(void)
+{
+    static FATFS sdcard_fs;
+    FRESULT status;
+
+    printf("/********************fs test*******************/\n");
+    status = f_mount(&sdcard_fs, _T("0:"), 1);
+    printf("mount sdcard:%d\n", status);
+    if (status != FR_OK)
+        return status;
+    return 0;
 }
 
 int main(void) {
@@ -233,7 +277,7 @@ int main(void) {
 #endif
     lcd_clear(BLACK);
     /* DVP init */
-        printf("DVP init\n");
+    printf("DVP init\n");
     #if OV5640
         dvp_init(16);
         dvp_set_xclk_rate(12000000);
@@ -278,22 +322,65 @@ int main(void) {
         printf("\nmodel init error\n");
         while (1) {};
     }
+    FIL file;
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
     detect_rl0.threshold= 0.3;
     detect_rl0.nms_value= 0.3;
+    detect_rl0.logfile = &file;
     region_layer_init(&detect_rl0, 10*2, 7*2, 18, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
     detect_rl1.threshold= 0.3;
     detect_rl1.nms_value= 0.3;
+    detect_rl1.logfile = &file;
     region_layer_init(&detect_rl1, 20*2, 14*2, 18, 320, 224);
 
     /* enable global interrupt */
     sysctl_enable_irq();
+
+    /* SD card init */
+    if(sdcard_init())
+    {
+        printf("SD card err\n");
+        return -1;
+    }
+    if(fs_init())
+    {
+        printf("FAT32 err\n");
+        return -1;
+    }
+    FRESULT ret = FR_OK;
+
+    char *dir = "log";
+    ret = f_mkdir(dir);
+    if(ret == FR_OK)
+        printf("Mkdir %s ok\n", dir);
+    else
+        printf("Mkdir %s err [%d]\n", dir, ret);
+
+    char path[32]; // = "log/test.txt";
+    printf("/*******************sd read write test*******************/\n");
+    // uint32_t v_ret_len = 0;
+    for(int round=0; ;round++){
+        FILINFO v_fileinfo;
+        sprintf(path, "log/%d.txt", round);
+        if((ret = f_stat(path, &v_fileinfo)) != FR_OK) break;
+    }
+
+    if ((ret = f_open(&file, path, FA_CREATE_ALWAYS | FA_WRITE)) != FR_OK) {
+        printf("open file %s err[%d]\n", path, ret);
+        return ret;
+    }
+    else
+    {
+        printf("Open %s ok\n", path);
+    }
+
     /* system start */
     printf("System start\n");
+    uint32_t frame_count=0;
     while (1)
     {
         g_dvp_finish_flag= 0;
@@ -321,8 +408,10 @@ int main(void) {
         /* display result */
         lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
         /* run key point detect */
+        f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
+        if((frame_count++) % 32 == 0) f_sync(&file);
         // sleep(1);
     }
     while (1) {}
