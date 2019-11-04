@@ -43,15 +43,15 @@ static obj_info_t face_detect_info;
 // NOTE x,y
 
 static float layer0_anchor[ANCHOR_NUM * 2]= {
-    48/320., 48/224.,
-    36/320., 72/224.,
-    72/320., 36/224.
+    79/320., 45/224.,
+    43/320., 117/224.,
+    97/320., 161/224.
 };
 
 static float layer1_anchor[ANCHOR_NUM * 2]= {
-    24/320., 32/224.,
-    18/320., 36/224.,
-    36/320., 18/224.
+    6/320., 10/224.,
+    14/320., 27/224.,
+    24/320., 62/224.
 };
 
 #define LOAD_KMODEL_FROM_FLASH 1
@@ -173,8 +173,8 @@ static void drawboxes(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32
                       float prob) {
     if (x1 >= 320) x1= 319;
     if (x2 >= 320) x2= 319;
-    if (y1 >= 240) y1= 239;
-    if (y2 >= 240) y2= 239;
+    if (y1 >= 224) y1= 223;
+    if (y2 >= 224) y2= 223;
 
 #if (CLASS_NUMBER > 1)
     lcd_draw_rectangle(x1, y1, x2, y2, 2, class_lable[class].color);
@@ -241,29 +241,29 @@ int main(void) {
         dvp_set_output_enable(0, 1);
         dvp_set_output_enable(1, 1);
         dvp_set_image_format(DVP_CFG_RGB_FORMAT);
-        dvp_set_image_size(320, 240);
+        dvp_set_image_size(320, 224);
         ov5640_init();
     #else
         dvp_init(8);
-        dvp_set_xclk_rate(24000000);
+        dvp_set_xclk_rate(22400000);
         dvp_enable_burst();
         dvp_set_output_enable(0, 1);
         dvp_set_output_enable(1, 1);
         dvp_set_image_format(DVP_CFG_RGB_FORMAT);
-        dvp_set_image_size(320, 240);
+        dvp_set_image_size(320, 224);
         ov2640_init();
     #endif
 
     kpu_image.pixel= 3;
     kpu_image.width= 320;
-    kpu_image.height= 240;
+    kpu_image.height= 224;
     image_init(&kpu_image);
     display_image.pixel= 2;
     display_image.width= 320;
-    display_image.height= 240;
+    display_image.height= 224;
     image_init(&display_image);
-    dvp_set_ai_addr((uint32_t)kpu_image.addr + 320 * 224 * 2, (uint32_t)(kpu_image.addr + 320 * 224),
-                    (uint32_t)(kpu_image.addr));
+    dvp_set_ai_addr((uint32_t)kpu_image.addr, (uint32_t)(kpu_image.addr + 320 * 224),
+                    (uint32_t)(kpu_image.addr + 320 * 224 * 2));
     dvp_set_display_addr((uint32_t)display_image.addr);
     dvp_config_interrupt(DVP_CFG_START_INT_ENABLE | DVP_CFG_FINISH_INT_ENABLE, 0);
     dvp_disable_auto();
@@ -280,15 +280,15 @@ int main(void) {
     }
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
-    detect_rl0.threshold= 0.6;
+    detect_rl0.threshold= 0.;
     detect_rl0.nms_value= 0.3;
-    region_layer_init(&detect_rl0, 10*2, 7*2, 24, 320, 224);
+    region_layer_init(&detect_rl0, 10*2, 7*2, 18, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
-    detect_rl1.threshold= 0.6;
+    detect_rl1.threshold= 0.;
     detect_rl1.nms_value= 0.3;
-    region_layer_init(&detect_rl1, 20*2, 14*2, 24, 320, 224);
+    region_layer_init(&detect_rl1, 20*2, 14*2, 18, 320, 224);
 
     /* enable global interrupt */
     sysctl_enable_irq();
@@ -304,7 +304,6 @@ int main(void) {
         g_ai_done_flag= 0;
         kpu_run_kmodel(&face_detect_task, kpu_image.addr, DMAC_CHANNEL5, ai_done, NULL);
         while (!g_ai_done_flag) {};
-
         float *output0, *output1;
         size_t output_size0, output_size1;
 
@@ -320,7 +319,7 @@ int main(void) {
         do_more_nms_sort(&detect_rl0, &detect_rl1, 0.3);
 
         /* display result */
-        lcd_draw_picture(0, 0, 320, 240, (uint32_t *)display_image.addr);
+        lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
         /* run key point detect */
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);

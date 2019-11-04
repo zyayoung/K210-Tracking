@@ -21,11 +21,11 @@ int region_layer_init(region_layer_t *rl, int width, int height, int channels, i
                       int origin_height) {
     int flag= 0;
 
-    rl->coords= 6;
+    rl->coords= 4;
     rl->image_width= 320;
     rl->image_height= 224;
     // ! 原来这里默认anchor数为5,把我坑死
-    rl->classes= channels / rl->anchor_number - 7;
+    rl->classes= channels / rl->anchor_number - 5;
     rl->net_width= origin_width;
     rl->net_height= origin_height;
     rl->layer_width= width;
