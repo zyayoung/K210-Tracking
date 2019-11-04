@@ -71,6 +71,7 @@ void lcd_init(void);
 void lcd_clear(uint16_t color);
 void lcd_set_direction(lcd_dir_t dir);
 void lcd_set_area(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
+void lcd_clear_area(uint16_t color, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
 void lcd_draw_point(uint16_t x, uint16_t y, uint16_t color);
 void lcd_draw_string(uint16_t x, uint16_t y, char *str, uint16_t color);
 void lcd_draw_picture(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint32_t *ptr);

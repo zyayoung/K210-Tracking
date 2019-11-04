@@ -320,12 +320,7 @@ int main(void) {
     if(enable_sd_card){
         FRESULT ret = FR_OK;
 
-        char *dir = "log";
-        ret = f_mkdir(dir);
-        if(ret == FR_OK)
-            printf("Mkdir %s ok\n", dir);
-        else
-            printf("Mkdir %s err [%d]\n", dir, ret);
+        ret = f_mkdir("log");
 
         /* sd read write test */
         char path[32];
@@ -355,7 +350,8 @@ int main(void) {
 
     /* system start */
     printf("System start\n");
-    if(!enable_sd_card) lcd_draw_string(10, 224, "NO SDCARD", RED);
+    // lcd_draw_string(10, 224, "Yolov3 Human Detection", RED);
+    if(!enable_sd_card) lcd_draw_string(240, 224, "NO SDCARD", RED);
     uint32_t frame_count=0;
     while (1)
     {
@@ -388,7 +384,14 @@ int main(void) {
         if(enable_sd_card) f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
-        if(enable_sd_card && (frame_count++) % 32 == 0) f_sync(&file);
+        if(enable_sd_card && frame_count % 64 == 0){
+            f_sync(&file);
+            char str_buf[32];
+            uint64_t sec=sysctl_get_time_us()/1000000;
+            sprintf(str_buf, "%02ld:%02ld:%02ld", sec/3600, (sec/60)%60, sec%60);
+            lcd_clear_area(BLACK, 240, 224, 320, 240);
+            lcd_draw_string(240, 224, str_buf, RED);
+        }
+        frame_count++;
     }
-    while (1) {}
 }
