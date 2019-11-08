@@ -362,12 +362,14 @@ int main(void) {
     detect_rl0.anchor_number= ANCHOR_NUM;
     detect_rl0.anchor= layer0_anchor;
     detect_rl0.threshold= 0.3;
+    detect_rl0.scale_x_y= 1.1;
     detect_rl0.logfile = enable_sd_card ? &file : NULL;
     region_layer_init(&detect_rl0, 10*2, 7*2, 18, 320, 224);
 
     detect_rl1.anchor_number= ANCHOR_NUM;
     detect_rl1.anchor= layer1_anchor;
     detect_rl1.threshold= 0.3;
+    detect_rl1.scale_x_y= 1.2;
     detect_rl1.logfile = enable_sd_card ? &file : NULL;
     region_layer_init(&detect_rl1, 20*2, 14*2, 18, 320, 224);
 
@@ -402,21 +404,33 @@ int main(void) {
         do_more_nms_sort(&detect_rl0, &detect_rl1, 0.3);
 
         /* display result */
-        lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
 
         if(enable_sd_card) f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
+        else{
+            lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
+        }
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
-        if(enable_sd_card && frame_count % 64 == 0){
-            f_sync(&file);
-            char str_buf[32];
-            uint64_t sec=sysctl_get_time_us()/1000000;
-            sprintf(str_buf, "%02ld:%02ld:%02ld", sec/3600, (sec/60)%60, sec%60);
-            lcd_clear_area(BLACK, 240, 224, 320, 240);
-            lcd_draw_string(240, 224, str_buf, RED);
-            jfif = jfif_encode(&bp);
-            jfif_write(jfif, &vid_file);
-            jfif_free(jfif);
+        // int step=4;
+        if(enable_sd_card){
+            // if(frame_count % (4*step) == 0){
+                f_sync(&file);
+            // }
+            // if(frame_count % (4*step) == step){
+                char str_buf[32];
+                uint64_t sec=sysctl_get_time_us()/1000000;
+                sprintf(str_buf, "%02ld:%02ld:%02ld", sec/3600, (sec/60)%60, sec%60);
+                lcd_clear_area(BLACK, 240, 224, 320, 240);
+                lcd_draw_string(240, 224, str_buf, RED);
+            // }
+            // if(frame_count % (4*step) == step*2){
+                jfif = jfif_encode(&bp);
+                jfif_write(jfif, &vid_file);
+                jfif_free(jfif);
+            // }
+            // if(frame_count % (4*step) == step*3){
+                lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
+            // }
         }
         frame_count++;
     }

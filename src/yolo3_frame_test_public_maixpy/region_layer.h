@@ -14,7 +14,7 @@ typedef struct {
         uint32_t y2;
         uint32_t class_id;
         float prob;
-    } obj[10];
+    } obj[64];
 } obj_info_t;
 
 typedef struct {
@@ -38,6 +38,7 @@ typedef struct {
     float *probs_buf;
     float **probs;
     FIL *logfile;
+    float scale_x_y;
 } region_layer_t;
 
 typedef void (*callback_draw_box)(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2,

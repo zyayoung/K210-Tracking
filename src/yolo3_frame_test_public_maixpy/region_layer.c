@@ -165,11 +165,11 @@ static void correct_region_boxes(region_layer_t *rl, box_t *boxes) {
 }
 
 static box_t get_region_box(float *x, float *biases, int n, int index, int i, int j, int w, int h,
-                            int stride) {
+                            int stride, float scale_x_y) {
     volatile box_t b;
 
-    b.x= (i + x[index + 0 * stride]) / w;
-    b.y= (j + x[index + 1 * stride]) / h;
+    b.x= (i + x[index + 0 * stride] * scale_x_y - 0.5*(scale_x_y - 1)) / w;
+    b.y= (j + x[index + 1 * stride] * scale_x_y - 0.5*(scale_x_y - 1)) / h;
     b.w= expf(x[index + 2 * stride]) * biases[2 * n];
     b.h= expf(x[index + 3 * stride]) * biases[2 * n + 1];
     return b;
@@ -196,7 +196,7 @@ static void get_region_boxes(region_layer_t *rl, float *predictions, float **pro
             float scale= predictions[obj_index];
 
             boxes[index]= get_region_box(predictions, rl->anchor, n, box_index, col, row,
-                                         layer_width, layer_height, layer_width * layer_height);
+                                         layer_width, layer_height, layer_width * layer_height, rl->scale_x_y);
 
             float max= 0;
 
