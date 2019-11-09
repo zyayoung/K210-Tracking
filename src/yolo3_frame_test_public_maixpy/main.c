@@ -228,6 +228,26 @@ static int ALIGN(int x, int y) {
     return (x + y - 1) & ~(y - 1);
 }
 
+struct _record_ctx{
+    corelock_t imlock, frame_countlock;
+    BMP *bp;
+    FIL *vid_file;
+    int frame_count;
+}record_ctx;
+
+int record_core1(void *ctx) {
+    while (1) {
+        corelock_lock(&record_ctx.imlock);
+        void *jfif = jfif_encode(record_ctx.bp);
+        corelock_unlock(&record_ctx.imlock);
+        corelock_lock(&record_ctx.frame_countlock);
+        jfif_write(jfif, record_ctx.vid_file);
+        jfif_free(jfif);
+        corelock_unlock(&record_ctx.frame_countlock);
+    }
+}
+
+
 int main(void) {
     /* Set CPU and dvp clk */
     sysctl_pll_set_freq(SYSCTL_PLL0, PLL0_OUTPUT_FREQ);
@@ -293,7 +313,6 @@ int main(void) {
     image_init(&display_image);
 
     BMP bp = {0};
-    void *jfif = NULL;
     bp.width  = kpu_image.width;
     bp.height = kpu_image.height;
     bp.stride = ALIGN(kpu_image.width * 3, 4);
@@ -338,7 +357,6 @@ int main(void) {
         FRESULT ret = FR_OK;
 
         f_mkdir("log");
-        f_mkdir("jpg");
 
         /* sd read write test */
         char path[32];
@@ -377,9 +395,19 @@ int main(void) {
     printf("System start\n");
     // lcd_draw_string(10, 224, "Yolov3 Human Detection", RED);
     if(!enable_sd_card) lcd_draw_string(240, 224, "NO SDCARD", RED);
-    uint32_t frame_count=0;
+
+    if(enable_sd_card){
+        corelock_lock(&record_ctx.imlock);
+        corelock_lock(&record_ctx.frame_countlock);
+        record_ctx.bp = &bp;
+        record_ctx.vid_file = &vid_file;
+        register_core1(record_core1, NULL);
+    }
+
+    uint64_t last_time = sysctl_get_time_us();
     while (1)
     {
+        if(enable_sd_card) corelock_unlock(&record_ctx.frame_countlock);
         g_dvp_finish_flag= 0;
         dvp_clear_interrupt(DVP_STS_FRAME_START | DVP_STS_FRAME_FINISH);
         dvp_config_interrupt(DVP_CFG_START_INT_ENABLE | DVP_CFG_FINISH_INT_ENABLE, 1);
@@ -389,6 +417,8 @@ int main(void) {
         g_ai_done_flag= 0;
         kpu_run_kmodel(&detect_task, kpu_image.addr, DMAC_CHANNEL5, ai_done, NULL);
         while (!g_ai_done_flag) {};
+        if(enable_sd_card) corelock_lock(&record_ctx.frame_countlock);
+        if(enable_sd_card) corelock_unlock(&record_ctx.imlock);
         float *output0, *output1;
         size_t output_size0, output_size1;
 
@@ -406,32 +436,21 @@ int main(void) {
         /* display result */
 
         if(enable_sd_card) f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
-        else{
-            lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
-        }
+        lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
-        // int step=4;
-        if(enable_sd_card){
-            // if(frame_count % (4*step) == 0){
-                f_sync(&file);
-            // }
-            // if(frame_count % (4*step) == step){
-                char str_buf[32];
-                uint64_t sec=sysctl_get_time_us()/1000000;
-                sprintf(str_buf, "%02ld:%02ld:%02ld", sec/3600, (sec/60)%60, sec%60);
-                lcd_clear_area(BLACK, 240, 224, 320, 240);
-                lcd_draw_string(240, 224, str_buf, RED);
-            // }
-            // if(frame_count % (4*step) == step*2){
-                jfif = jfif_encode(&bp);
-                jfif_write(jfif, &vid_file);
-                jfif_free(jfif);
-            // }
-            // if(frame_count % (4*step) == step*3){
-                lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
-            // }
+        int step=8;
+        if(enable_sd_card && record_ctx.frame_count % step == 0){
+            f_sync(&file);
+            char str_buf[32];
+            uint64_t sec=sysctl_get_time_us()/1000000;
+            sprintf(str_buf, "%02ld:%02ld:%02ld", sec/3600, (sec/60)%60, sec%60);
+            float fps = step*1e6 / (sysctl_get_time_us()-last_time);
+            last_time = sysctl_get_time_us();
+            lcd_clear_area(BLACK, 240, 224, 320, 240);
+            lcd_draw_string(240, 224, str_buf, RED);
         }
-        frame_count++;
+        record_ctx.frame_count++;
+        if(enable_sd_card) corelock_lock(&record_ctx.imlock);
     }
 }
