@@ -211,7 +211,7 @@ static void get_region_boxes(region_layer_t *rl, float *predictions, float **pro
             probs[index][classes]= max;
         }
     }
-    correct_region_boxes(rl, boxes);
+    // correct_region_boxes(rl, boxes);
 }
 
 static int nms_comparator(const void *pa, const void *pb) {
@@ -327,7 +327,6 @@ void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2, float score_thre
 
     uint32_t boxes_number= rl1->boxes_number + rl2->boxes_number;
     uint32_t classes= rl1->classes;
-    float nms_value= rl1->nms_value;
     int i, j, k;
     sortable_box_t* s = malloc(boxes_number * sizeof(sortable_box_t));
     if (s == NULL) {
@@ -362,7 +361,7 @@ void do_more_nms_sort(region_layer_t *rl1, region_layer_t *rl2, float score_thre
                 if (s[j].probs[k] ==0) continue;
                 box_t b= *(s[j].box);
 
-                if (box_iou(a, b) > nms_value) {
+                if (box_iou(a, b) > score_threshold) {
                     s[j].probs[k]= 0;      
                 }
             }
