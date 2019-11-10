@@ -27,12 +27,12 @@ class Record:
         self.frame_count = len(self.ann)
         self.vid_file = open(ann_filename[:-4]+".mjpeg", "rb")
 
-        self.cur_pos = -1
+        self.cur_pos = 0
         self.threshold = 0.8
 
     def get_frame(self, index=None):
         if index is None:
-            self.cur_pos += 1
+            # self.cur_pos += 1
             index = self.cur_pos
         time, p, pend, dets = self.ann[index]
         self.vid_file.seek(p)
@@ -52,8 +52,12 @@ class Record:
     def get_time(self, index=None):
         if index is None:
             index = self.cur_pos
-        time, p, pend, dets = self.ann[index]
-        return time
+        return self.times[index]
+    
+    def get_interval(self, index=None):
+        if index is None:
+            index = self.cur_pos
+        return (self.times[index+1]  - self.times[index]) if (0 < index + 1 < self.frame_count) else (1000 / self.get_mean_fps())
     
     def get_mean_fps(self):
         return len(self.times) * 1000 / (self.times[-1] - self.times[0])

@@ -1,4 +1,4 @@
-from time import sleep
+from time import sleep, clock
 import cv2
 import sys
 from threading import Timer,Thread,Event
@@ -57,8 +57,7 @@ class Ui_MainWindow(object):
         self.timeComboBox.setSizePolicy(sizePolicy)
         self.timeComboBox.setFocusPolicy(QtCore.Qt.NoFocus)
         self.timeComboBox.setObjectName("timeComboBox")
-        self.timeComboBox.addItem("")
-        self.timeComboBox.addItem("")
+        for _ in range(3): self.timeComboBox.addItem("")
         self.horizontalLayout_4.addWidget(self.timeComboBox)
         self.fileButton = QtWidgets.QPushButton(self.frame_3)
         self.fileButton.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -160,31 +159,13 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "Video Player with Signal"))
-        self.timeComboBox.setItemText(0, _translate("MainWindow", "Real-Time"))
-        self.timeComboBox.setItemText(1, _translate("MainWindow", "Frame by Frame"))
+        self.timeComboBox.setItemText(0, _translate("MainWindow", "Real Time"))
+        self.timeComboBox.setItemText(1, _translate("MainWindow", "Fast Forward"))
+        self.timeComboBox.setItemText(2, _translate("MainWindow", "Fast Forward 2x"))
         self.fileButton.setText(_translate("MainWindow", "Open Data File"))
         # self.openButton.setText(_translate("MainWindow", "Open Video"))
         self.startButton.setText(_translate("MainWindow", "Start"))
         self.pauseButton.setText(_translate("MainWindow", "Pause"))
-
-class perpetualTimer():
-
-   def __init__(self,t,hFunction):
-      self.t=t
-      self.hFunction = hFunction
-      self.thread = Timer(self.t,self.handle_function)
-
-   def handle_function(self):
-      self.hFunction()
-      self.thread = Timer(self.t,self.handle_function)
-      self.thread.start()
-
-   def start(self):
-      self.thread.start()
-
-   def cancel(self):
-      self.thread.cancel()
-
 
 
 class workerThread2(QThread):
@@ -196,13 +177,12 @@ class workerThread2(QThread):
         self.wait()
 
     def run(self):
-
         #QApplication.processEvents()
         while self.mw.isRun:
 
             if self.mw.isthreadActive and 0:
                 #cnt=self.mw.stframe + self.mw.ui.horizontalSlider.value()-1
-                cnt=self.mw.frameID
+                cnt=self.mw.data.cur_pos
                 if cnt+1-self.mw.stframe<self.mw.ui.horizontalSlider.maximum() and not self.mw.sliderbusy and not self.mw.resizegoing:
 
                     #self.mw.ui.horizontalSlider.setValue(cnt+1-self.mw.stframe)
@@ -233,8 +213,6 @@ class workerThread(QThread):
 
     updatedM = QtCore.pyqtSignal(int)
 
-
-
     def __init__(self,mw):
         self.mw=mw
         QThread.__init__(self)
@@ -243,19 +221,22 @@ class workerThread(QThread):
         self.wait()
 
     def run(self):
-
-        itr=0
         QApplication.processEvents()
+        last_iter_start_time = clock()
         while self.mw.isRun:
-            itr+=1
+            if self.mw.isthreadActive and self.mw.isbusy==False:
+                # If video ended
+                if self.mw.data.cur_pos + 1 >= self.mw.data.frame_count:
+                    self.mw.pauseButtonPressed()
+                    continue
 
-            if self.mw.isthreadActive and self.mw.isbusy==False and self.mw.frameID + 1 < self.mw.data.frame_count:
-                #print(itr)
-
-                self.mw.data.cur_pos = self.mw.frameID
-
-                if self.mw.timer is None:
-                    self.mw.frameID+=1
+                if self.mw.fastForward:
+                    self.mw.data.cur_pos+=self.mw.fastForward
+                else:
+                    time_passed = clock() - last_iter_start_time
+                    sleep(max(0, self.mw.data.get_interval()/1000 - time_passed))
+                    last_iter_start_time = clock()
+                    self.mw.data.cur_pos+=1
 
                 self.mw.isbusy=True
                 sf=self.mw.scaleFactor
@@ -280,13 +261,11 @@ class workerThread(QThread):
                 if self.mw.resizegoing==False:
                     self.mw.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
                     if not self.mw.sliderbusy and not self.mw.sliderbusy2:
-                        self.updatedM.emit(self.mw.frameID)
+                        self.updatedM.emit(self.mw.data.cur_pos)
 
                     QApplication.processEvents()
                 self.mw.isbusy=False
             else:
-                if self.mw.isthreadActive and self.mw.timer is None:
-                    self.mw.frameID+=1
                 sleep(1.0/50)
 
 
@@ -317,7 +296,7 @@ class MainForm(QMainWindow):
         self.figure.subplots_adjust(left=0.001, right=0.999, top=1.0, bottom=0.1)
 
         self.scaleFactor=1.0
-        self.frameID=0
+        # self.data.cur_pos=0
         self.msec = 0
         self.strt=0
         self.isRun=True
@@ -351,7 +330,6 @@ class MainForm(QMainWindow):
         self.limg=np.zeros((1,1,1))
         self.tracker=None
         self.cap=None
-        self.timer=None
 
 
         self.ui.statusbar.showMessage("Select Data File First")
@@ -401,21 +379,18 @@ class MainForm(QMainWindow):
         self.sliderbusy=True
         #print(self.ui.horizontalSlider.value())
         #self.ui.horizontalSlider.setValue(self.ui.horizontalSlider.value()+val)
-        #print(self.frameID)
-        self.frameID=self.stframe + self.ui.horizontalSlider.value()-1
-        #print(self.frameID)
+        #print(self.data.cur_pos)
+        self.data.cur_pos=self.stframe + self.ui.horizontalSlider.value()-1
+        #print(self.data.cur_pos)
         #self.drawmin=1
         if self.ui.startButton.isEnabled():
-            self.data.cur_pos = self.frameID
+            self.data.cur_pos = self.data.cur_pos
             frame=self.data.get_frame()
             self.limg=frame
             self._update_frame(frame)
-            # self.lineSliderSet(self.frameID)
+            # self.lineSliderSet(self.data.cur_pos)
 
         self.sliderbusy=False
-
-    def updateFrame(self):
-            self.frameID+=1
 
     def lineSliderSet(self,cnt):
         if cnt+1-self.stframe>self.ui.horizontalSlider.maximum():
@@ -466,16 +441,16 @@ class MainForm(QMainWindow):
         self.sliderbusy=True
 
     def horizontalSliderReleased(self):
-        self.frameID=self.stframe + self.ui.horizontalSlider.value()-1
+        self.data.cur_pos=self.stframe + self.ui.horizontalSlider.value()-1
 
         self.drawmin=1
         if self.ui.startButton.isEnabled():
-            self.data.cur_pos = self.frameID
+            self.data.cur_pos = self.data.cur_pos
             frame=self.data.get_frame()
             self.limg=frame
             self.on_zoomfit_clicked()
             self._update_frame(frame)
-            # self.lineSliderSet(self.frameID)
+            # self.lineSliderSet(self.data.cur_pos)
 
         self.sliderbusy=False
 
@@ -534,7 +509,7 @@ class MainForm(QMainWindow):
 
         frame = self.data.get_frame()
         self.drawmin=1
-        self.frameID=self.stframe
+        self.data.cur_pos=self.stframe
         self.limg=frame
         self.frameHeight=frame.shape[0]
         self.frameWidth=frame.shape[1]
@@ -602,12 +577,6 @@ class MainForm(QMainWindow):
 
         self.ui.startButton.setEnabled(False)
 
-        if self.ui.timeComboBox.currentIndex()==0:
-            self.timer = perpetualTimer(1.0/self.fps,self.updateFrame)
-            self.timer.start()
-        else:
-            self.timer=None
-
         self.ui.pauseButton.setEnabled(True)
         self.isthreadActive=True
 
@@ -617,10 +586,11 @@ class MainForm(QMainWindow):
             return
          self.ui.startButton.setEnabled(True)
          self.ui.pauseButton.setEnabled(False)
-         if not self.timer is None:
-            self.timer.cancel()
          self.isthreadActive=False
-
+    
+    @property
+    def fastForward(self):
+        return self.ui.timeComboBox.currentIndex()
 
 
 app=QApplication(sys.argv)
