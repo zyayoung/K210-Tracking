@@ -9,35 +9,49 @@ class Record:
         ann_raw = open(ann_filename).read().split("T")
         self.ann = []
         self.p = []
+        self.times = []
+        self.det_counts = []
         self.dets = {}
         for i in range(len(ann_raw)-1):
             a = ann_raw[i].split()
-            if len(a)>2:
-                ann_tmp = np.array(a[2:], dtype=float).reshape(-1, 5)
-                ann_tmp[..., 4] *= 100
-                self.ann.append((int(a[0]), int(a[1]), int(ann_raw[i+1].split()[1]), np.array(np.uint16(ann_tmp))))
-            elif a:
-                self.ann.append((int(a[0]), int(a[1]), int(ann_raw[i+1].split()[1]), []))
+            if a:
+                time = int(a[0])
+                if len(a)>2:
+                    ann_tmp = np.array(a[2:], dtype=float).reshape(-1, 5)
+                    ann_tmp[..., 4] *= 100
+                    self.ann.append((time, int(a[1]), int(ann_raw[i+1].split()[1]), np.array(np.uint16(ann_tmp))))
+                else:
+                    self.ann.append((time, int(a[1]), int(ann_raw[i+1].split()[1]), []))
+                self.times.append(time)
+                self.det_counts.append(self.ann[-1][-1][..., 4].sum() if len(self.ann[-1][-1]) else 0)
         self.frame_count = len(self.ann)
         self.vid_file = open(ann_filename[:-4]+".mjpeg", "rb")
 
-        self.cur_pos = 0
+        self.cur_pos = -1
+        self.threshold = 0.8
 
     def get_frame(self, index=None):
         if index is None:
-            index = self.cur_pos
             self.cur_pos += 1
+            index = self.cur_pos
         time, p, pend, dets = self.ann[index]
         self.vid_file.seek(p)
         im_b = self.vid_file.read(pend-p+4)
         im = cv2.imdecode(np.asarray(bytearray(im_b), dtype="uint8"), cv2.IMREAD_COLOR)
         return im
     
-    def get_dets(self, index):
+    def get_dets(self, index=None):
+        if index is None:
+            index = self.cur_pos
         time, p, pend, dets = self.ann[index]
-        return dets
+        if len(dets) == 0:
+            return []
+        keep = dets[..., 4]>self.threshold * 100
+        return dets[keep]
     
-    def get_time(self, index):
+    def get_time(self, index=None):
+        if index is None:
+            index = self.cur_pos
         time, p, pend, dets = self.ann[index]
         return time
         

@@ -9,6 +9,7 @@ from PyQt5 import QtGui, QtCore ,QtWidgets
 import numpy as np
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+import matplotlib.dates
 from weakref import ref
 import pynput
 
@@ -248,7 +249,7 @@ class workerThread(QThread):
         while self.mw.isRun:
             itr+=1
             
-            if self.mw.isthreadActive and self.mw.isbusy==False and self.mw.frameID < self.mw.data.frame_count:               
+            if self.mw.isthreadActive and self.mw.isbusy==False and self.mw.frameID + 1 < self.mw.data.frame_count:               
                 #print(itr)
 
                 self.mw.data.cur_pos = self.mw.frameID
@@ -271,7 +272,10 @@ class workerThread(QThread):
                 nchannel=image.shape[2]
                 limg2 = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  
                  
-                timg=cv2.resize(limg2,(int(sf*limg2.shape[1]),int(sf*limg2.shape[0]))) 
+                timg=cv2.resize(limg2,(int(sf*limg2.shape[1]),int(sf*limg2.shape[0])))
+                for det in self.mw.data.get_dets():
+                    x_min, y_min, x_max, y_max = np.int32(det[:-1]*self.mw.scaleFactor)
+                    cv2.rectangle(timg, (x_min, y_min), (x_max, y_max), (255, 0, 0))
                 limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)  
                 if self.mw.resizegoing==False:
                     self.mw.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
@@ -403,12 +407,7 @@ class MainForm(QMainWindow):
             self.data.cur_pos = self.frameID     
             frame=self.data.get_frame()
             self.limg=frame            
-            #self.on_zoomfit_clicked()
-            nchannel=frame.shape[2]
-            limg2 = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)                  
-            timg=cv2.resize(limg2,(int(self.scaleFactor*limg2.shape[1]),int(self.scaleFactor*limg2.shape[0]))) 
-            limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)  
-            self.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
+            self._update_frame(frame)
             # self.lineSliderSet(self.frameID)
 
         self.sliderbusy=False   
@@ -473,11 +472,7 @@ class MainForm(QMainWindow):
             frame=self.data.get_frame()
             self.limg=frame            
             self.on_zoomfit_clicked()
-            nchannel=frame.shape[2]
-            limg2 = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)                  
-            timg=cv2.resize(limg2,(int(self.scaleFactor*limg2.shape[1]),int(self.scaleFactor*limg2.shape[0]))) 
-            limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)  
-            self.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
+            self._update_frame(frame)
             # self.lineSliderSet(self.frameID)
 
         self.sliderbusy=False
@@ -505,10 +500,20 @@ class MainForm(QMainWindow):
         sleep(0.2)
         self.resizegoing=False
 
+    def _update_frame(self, frame):
+        nchannel=frame.shape[2]
+        limg2 = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  
+                
+        timg=cv2.resize(limg2,(int(self.scaleFactor*limg2.shape[1]),int(self.scaleFactor*limg2.shape[0]))) 
+        for det in self.data.get_dets():
+            x_min, y_min, x_max, y_max = np.int32(det[:-1]*self.scaleFactor)
+            cv2.rectangle(timg, (x_min, y_min), (x_max, y_max), (255, 0, 0))
+        limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)  
+        self.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
+
     def openButtonPressed(self):
-      if self.isthreadActive:
-            return
-      try:
+        if self.isthreadActive:
+                return
         # fileName = QFileDialog.getOpenFileName(None,caption="Select Video File",directory=QtCore.QDir.currentPath())
         # if len(fileName[0])>0:
         #     self.cap = cv2.VideoCapture(fileName[0])
@@ -532,65 +537,56 @@ class MainForm(QMainWindow):
         self.frameWidth=frame.shape[1] 
         self.on_zoomfit_clicked()
 
-        nchannel=frame.shape[2]
-        limg2 = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  
-                
-        timg=cv2.resize(limg2,(int(self.scaleFactor*limg2.shape[1]),int(self.scaleFactor*limg2.shape[0]))) 
-        limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)  
-        self.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
+        self._update_frame(frame)
 
         self.ui.statusbar.showMessage("Ready to Start, or redefine data or video") 
         self.ui.startButton.setEnabled(True)
         self.ui.pauseButton.setEnabled(False)
         self.ui.horizontalSlider.setEnabled(True)
-      except Exception as e:
-        print(e)
-        pass
 
     def fileButtonPressed(self):
         fileName = QFileDialog.getOpenFileName(None,caption="Select Data File in txt",directory=QtCore.QDir.currentPath(), filter="*.mjpeg")
         if len(fileName[0])>0:
-          try:
             self.data = Record(fileName[0])
             self.isdata=True
-            # self.draw()  
+            self.draw()  
             self.ui.statusbar.showMessage("Select Video File")  
             # self.ui.openButton.setEnabled(True)
             self.openButtonPressed()
-          except Exception as e:
-            print(e)
-            pass
 
         else:
             return
 
     def draw(self):              
         
-        self.ax1.clear()        
+        self.ax1.clear()
+        # self.ax1.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S.%f'))
+        # self.ax1.xaxis.set_major_locator(matplotlib.dates.MicrosecondLocator(interval=100000))
         #self.ax.axis('off')
         
-        data=self.data.values[1:,1:5]
-        data[:,1]= (data[:,1]-data[:,1].min())/(data[:,1].max()-data[:,1].min())
-        data[:,2]= (data[:,2]-data[:,2].min())/(data[:,2].max()-data[:,2].min())
-        data[:,3]= (data[:,3]-data[:,3].min())/(data[:,3].max()-data[:,3].min())
+        # data=self.data.values[1:,1:5]
+        # data[:,1]= (data[:,1]-data[:,1].min())/(data[:,1].max()-data[:,1].min())
+        # data[:,2]= (data[:,2]-data[:,2].min())/(data[:,2].max()-data[:,2].min())
+        # data[:,3]= (data[:,3]-data[:,3].min())/(data[:,3].max()-data[:,3].min())
         #self.ax.set_xlim([-0.5,0.5])
-        self.ax1.set_ylim([0,3.6])
+        # self.ax1.set_ylim([0,3.6])
         #self.ax.set_zlim([-0.5,0.5])
-        self.ax1.plot(data[:,0],data[:,1]+2.3,'y',label=self.data.values[0,2])
-        self.ax1.plot(data[:,0],data[:,2]+1.2,'r',label=self.data.values[0,3])
-        self.ax1.plot(data[:,0],data[:,3]+0.1,'g',label=self.data.values[0,4])
+        # self.ax1.plot(data[:,0],data[:,1]+2.3,'y',label=self.data.values[0,2])
+        # self.ax1.plot(data[:,0],data[:,2]+1.2,'r',label=self.data.values[0,3])
+        # self.ax1.plot(data[:,0],data[:,3]+0.1,'g',label=self.data.values[0,4])
+        self.ax1.plot(self.data.times, self.data.det_counts,'y',label="cnt")
 
-        self.ax1.plot(data[:,0],1.15*np.ones(data[:,0].shape),'k')
-        self.ax1.plot(data[:,0],2.25*np.ones(data[:,0].shape),'k')
+        # self.ax1.plot(data[:,0],1.15*np.ones(data[:,0].shape),'k')
+        # self.ax1.plot(data[:,0],2.25*np.ones(data[:,0].shape),'k')
         
 
-        self.ax1.set_xlim([self.data.values[1,1],self.data.values[-1,1]])       
+        # self.ax1.set_xlim([self.data.values[1,1],self.data.values[-1,1]])       
 
-        self.ax1.plot([self.data.values[1,1],self.data.values[1,1]],[0,3.4],'k',linewidth=2.0)    
+        # self.ax1.plot([self.data.values[1,1],self.data.values[1,1]],[0,3.4],'k',linewidth=2.0)    
   
         start, end = self.ax1.get_xlim()
-        self.ax1.xaxis.set_ticks(np.arange(start+1, end-1, 5))        
-        self.ax1.legend(loc='best',  framealpha=0.1,ncol=3)
+        # self.ax1.xaxis.set_ticks(np.arange(start+1, end-1, 5))
+        # self.ax1.legend(loc='best',  framealpha=0.1,ncol=3)
   
         
         self.ui.bottomImage.canvas.draw()
