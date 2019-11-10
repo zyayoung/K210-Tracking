@@ -195,22 +195,22 @@ class workerThread2(QThread):
     def __del__(self):
         self.wait()
 
-    def run(self):        
-        
+    def run(self):
+
         #QApplication.processEvents()
         while self.mw.isRun:
-            
+
             if self.mw.isthreadActive and 0:
                 #cnt=self.mw.stframe + self.mw.ui.horizontalSlider.value()-1
                 cnt=self.mw.frameID
-                if cnt+1-self.mw.stframe<self.mw.ui.horizontalSlider.maximum() and not self.mw.sliderbusy and not self.mw.resizegoing:            
-            
+                if cnt+1-self.mw.stframe<self.mw.ui.horizontalSlider.maximum() and not self.mw.sliderbusy and not self.mw.resizegoing:
+
                     #self.mw.ui.horizontalSlider.setValue(cnt+1-self.mw.stframe)
 
                     pdraw=self.mw.drawmin
                     while (cnt+1)/self.mw.fps>self.mw.data.values[self.mw.drawmin,1]:
                         self.mw.drawmin+=1
-                    if not self.mw.drawmin==pdraw:        
+                    if not self.mw.drawmin==pdraw:
                         #print(self.mw.drawmin)
                         wr = ref(self.mw.ax1.lines[5])
                         self.mw.ax1.lines.remove(wr())
@@ -225,15 +225,15 @@ class workerThread2(QThread):
             else:
                 sleep(0.01)
 
-            
 
-    
+
+
 
 class workerThread(QThread):
-        
+
     updatedM = QtCore.pyqtSignal(int)
 
-    
+
 
     def __init__(self,mw):
         self.mw=mw
@@ -243,13 +243,13 @@ class workerThread(QThread):
         self.wait()
 
     def run(self):
-        
+
         itr=0
         QApplication.processEvents()
         while self.mw.isRun:
             itr+=1
-            
-            if self.mw.isthreadActive and self.mw.isbusy==False and self.mw.frameID + 1 < self.mw.data.frame_count:               
+
+            if self.mw.isthreadActive and self.mw.isbusy==False and self.mw.frameID + 1 < self.mw.data.frame_count:
                 #print(itr)
 
                 self.mw.data.cur_pos = self.mw.frameID
@@ -257,8 +257,8 @@ class workerThread(QThread):
                 if self.mw.timer is None:
                     self.mw.frameID+=1
 
-                self.mw.isbusy=True              
-                sf=self.mw.scaleFactor 
+                self.mw.isbusy=True
+                sf=self.mw.scaleFactor
                 image = self.mw.data.get_frame()
                 self.mw.limg=image
                 if sf<=0:
@@ -267,23 +267,23 @@ class workerThread(QThread):
                 # if ret==False:
                 #       self.mw.isthreadActiv=False
                 #       self.mw.isbusy=False
-                #       continue              
-                                
+                #       continue
+
                 nchannel=image.shape[2]
-                limg2 = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  
-                 
+                limg2 = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
                 timg=cv2.resize(limg2,(int(sf*limg2.shape[1]),int(sf*limg2.shape[0])))
                 for det in self.mw.data.get_dets():
                     x_min, y_min, x_max, y_max = np.int32(det[:-1]*self.mw.scaleFactor)
                     cv2.rectangle(timg, (x_min, y_min), (x_max, y_max), (255, 0, 0))
-                limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)  
+                limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)
                 if self.mw.resizegoing==False:
                     self.mw.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
                     if not self.mw.sliderbusy and not self.mw.sliderbusy2:
-                        self.updatedM.emit(self.mw.frameID)                    
+                        self.updatedM.emit(self.mw.frameID)
 
                     QApplication.processEvents()
-                self.mw.isbusy=False 
+                self.mw.isbusy=False
             else:
                 if self.mw.isthreadActive and self.mw.timer is None:
                     self.mw.frameID+=1
@@ -300,24 +300,25 @@ class MainForm(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        
+
         layout = QVBoxLayout()
-        
+
         self.figure = Figure()
         self.ui.bottomImage.canvas = FigureCanvas(self.figure)
 
-        layout.addWidget(self.ui.bottomImage.canvas)        
+        layout.addWidget(self.ui.bottomImage.canvas)
         self.ui.bottomImage.setLayout(layout)
 
         self.ax1 = self.figure.add_subplot(1,1,1 )#, projection='3d')
-        
+
         self.ax1.get_yaxis().set_visible(False)
         self.ax1.get_xaxis().set_visible(True)
-        
+
         self.figure.subplots_adjust(left=0.001, right=0.999, top=1.0, bottom=0.1)
 
         self.scaleFactor=1.0
-        self.frameID=0        
+        self.frameID=0
+        self.msec = 0
         self.strt=0
         self.isRun=True
         self.resizegoing=False
@@ -326,22 +327,23 @@ class MainForm(QMainWindow):
         self.linebusy=False
         self.template=np.zeros((1,1,1))
         # # self.ui.openButton.clicked.connect(self.openButtonPressed)
-        self.ui.startButton.clicked.connect(self.startButtonPressed)   
-        self.ui.fileButton.clicked.connect(self.fileButtonPressed)      
+        self.ui.startButton.clicked.connect(self.startButtonPressed)
+        self.ui.fileButton.clicked.connect(self.fileButtonPressed)
         self.ui.horizontalSlider.sliderPressed.connect(self.horizontalSliderPressed)
+        self.ui.horizontalSlider.sliderMoved.connect(self.horizontalSliderReleased)
         self.ui.horizontalSlider.sliderReleased.connect(self.horizontalSliderReleased)
         self.ui.horizontalSlider.valueChanged.connect(self.slider_value_changed)
 
         self.ui.pauseButton.clicked.connect(self.pauseButtonPressed)
         #self.ui.MainWindow.
-        
+
         self.resized.connect(self._on_resized)
         #self.keypressed.connect(self._key_pressed)
         self.startx=0
         self.starty=0
         self.isvideo=False
         self.isdata=False
-        
+
 
         self.isbusy=0
         self.frameHeight=1
@@ -351,17 +353,17 @@ class MainForm(QMainWindow):
         self.cap=None
         self.timer=None
 
-       
+
         self.ui.statusbar.showMessage("Select Data File First")
         self.isthreadActive=False
 
-        self.wthread = workerThread(self)        
-        self.wthread.updatedM.connect(self.horizontalSliderSet)        
-        self.wthread.start()  
+        self.wthread = workerThread(self)
+        self.wthread.updatedM.connect(self.horizontalSliderSet)
+        self.wthread.start()
 
-        self.wthread2 = workerThread2(self)        
-        #self.wthread2.updatedLine.connect(self.lineSliderSet)       
-        self.wthread2.start() 
+        self.wthread2 = workerThread2(self)
+        #self.wthread2.updatedLine.connect(self.lineSliderSet)
+        self.wthread2.start()
 
         klistener=pynput.keyboard.Listener(on_press=self.on_press) #,on_release=self.on_release)
         klistener.start()
@@ -378,9 +380,9 @@ class MainForm(QMainWindow):
     #            print('right')
     #            #self.horizontalSliderIncrease(-1)
 
-    def on_press(self,key):        
-         if self.isRun:            
-            if pynput.keyboard.Key.space==key: 
+    def on_press(self,key):
+         if self.isRun:
+            if pynput.keyboard.Key.space==key:
                 if self.ui.pauseButton.isEnabled():
                     self.pauseButtonPressed()
                 else:
@@ -388,33 +390,33 @@ class MainForm(QMainWindow):
                         sleep(0.1)
                     self.startButtonPressed()
 
-    def slider_value_changed(self):        
+    def slider_value_changed(self):
         if not self.isthreadActive:
             #print('slidervalue change')
             self.horizontalSliderIncrease(0)
-           
+
     def horizontalSliderIncrease(self,val):
-        if self.sliderbusy or self.resizegoing:        
+        if self.sliderbusy or self.resizegoing:
             return
         self.sliderbusy=True
         #print(self.ui.horizontalSlider.value())
         #self.ui.horizontalSlider.setValue(self.ui.horizontalSlider.value()+val)
         #print(self.frameID)
-        self.frameID=self.stframe + self.ui.horizontalSlider.value()-1  
-        #print(self.frameID)     
+        self.frameID=self.stframe + self.ui.horizontalSlider.value()-1
+        #print(self.frameID)
         #self.drawmin=1
         if self.ui.startButton.isEnabled():
-            self.data.cur_pos = self.frameID     
+            self.data.cur_pos = self.frameID
             frame=self.data.get_frame()
-            self.limg=frame            
+            self.limg=frame
             self._update_frame(frame)
             # self.lineSliderSet(self.frameID)
 
-        self.sliderbusy=False   
+        self.sliderbusy=False
 
     def updateFrame(self):
             self.frameID+=1
-            
+
     def lineSliderSet(self,cnt):
         if cnt+1-self.stframe>self.ui.horizontalSlider.maximum():
             return
@@ -427,19 +429,19 @@ class MainForm(QMainWindow):
             self.drawmin=1
         while (cnt+1)/self.fps>self.data.values[self.drawmin,1]:
             self.drawmin+=1
-        if not self.drawmin==pdraw or pdraw==1:     
-           
+        if not self.drawmin==pdraw or pdraw==1:
+
             wr = ref(self.ax1.lines[5])
             self.ax1.lines.remove(wr())
             self.ui.bottomImage.canvas.draw()
             self.ax1.plot([self.data.values[self.drawmin,1],self.data.values[self.drawmin,1]],[0,3.4],'k',linewidth=2.0)
             self.ui.bottomImage.canvas.draw()
 
-        tsec=cnt/self.fps
+        tsec=self.data.get_time()/1000
         tmin=int(tsec/60)
         ttsec=int(tsec-60*tmin)
         ksec=tsec-60*tmin-ttsec
-                
+
 
         self.ui.statusbar.showMessage("Frame Time: "+str(tmin).zfill(2)+":"+str(ttsec).zfill(2)+":"+str(int(ksec*100)))
 
@@ -448,29 +450,29 @@ class MainForm(QMainWindow):
     def horizontalSliderSet(self,cnt):
         if cnt+1-self.stframe>self.ui.horizontalSlider.maximum() or self.sliderbusy or self.resizegoing:
             return
-        self.sliderbusy2=True        
-        self.ui.horizontalSlider.setValue(cnt+1-self.stframe)  
-        tsec=cnt/self.fps
+        self.sliderbusy2=True
+        self.ui.horizontalSlider.setValue(cnt+1-self.stframe)
+        tsec=self.data.get_time()/1000
         tmin=int(tsec/60)
         ttsec=int(tsec-60*tmin)
         ksec=tsec-60*tmin-ttsec
-                
 
-        self.ui.statusbar.showMessage("Frame Time: "+str(tmin).zfill(2)+":"+str(ttsec).zfill(2)+":"+str(int(ksec*100)))      
+
+        self.ui.statusbar.showMessage("Frame Time: "+str(tmin).zfill(2)+":"+str(ttsec).zfill(2)+":"+str(int(ksec*100)))
         self.sliderbusy2=False
-        
-    
+
+
     def horizontalSliderPressed(self):
         self.sliderbusy=True
 
     def horizontalSliderReleased(self):
         self.frameID=self.stframe + self.ui.horizontalSlider.value()-1
-        
+
         self.drawmin=1
         if self.ui.startButton.isEnabled():
-            self.data.cur_pos = self.frameID         
+            self.data.cur_pos = self.frameID
             frame=self.data.get_frame()
-            self.limg=frame            
+            self.limg=frame
             self.on_zoomfit_clicked()
             self._update_frame(frame)
             # self.lineSliderSet(self.frameID)
@@ -483,9 +485,9 @@ class MainForm(QMainWindow):
 
     def _on_resized(self):
         self.on_zoomfit_clicked()
-   
 
-    def on_zoomfit_clicked(self):        
+
+    def on_zoomfit_clicked(self):
 
         self.resizegoing=True
         a=self.ui.LeftImage.size()
@@ -502,13 +504,13 @@ class MainForm(QMainWindow):
 
     def _update_frame(self, frame):
         nchannel=frame.shape[2]
-        limg2 = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  
-                
-        timg=cv2.resize(limg2,(int(self.scaleFactor*limg2.shape[1]),int(self.scaleFactor*limg2.shape[0]))) 
+        limg2 = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+        timg=cv2.resize(limg2,(int(self.scaleFactor*limg2.shape[1]),int(self.scaleFactor*limg2.shape[0])))
         for det in self.data.get_dets():
             x_min, y_min, x_max, y_max = np.int32(det[:-1]*self.scaleFactor)
             cv2.rectangle(timg, (x_min, y_min), (x_max, y_max), (255, 0, 0))
-        limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)  
+        limage = QtGui.QImage(timg.data, timg.shape[1], timg.shape[0], nchannel*timg.shape[1], QtGui.QImage.Format_RGB888)
         self.ui.LeftImage.setPixmap(QtGui.QPixmap(limage))
 
     def openButtonPressed(self):
@@ -522,24 +524,25 @@ class MainForm(QMainWindow):
         #     return
 
         length = self.data.frame_count
-        self.fps = 6 #?
+        self.fps = self.data.get_mean_fps()
+        print(self.fps)
 
-        self.stframe=0  
+        self.stframe=0
         self.endframe=length-1
-    
+
         self.ui.horizontalSlider.setMaximum(self.endframe-self.stframe)
-        
+
         frame = self.data.get_frame()
         self.drawmin=1
         self.frameID=self.stframe
         self.limg=frame
         self.frameHeight=frame.shape[0]
-        self.frameWidth=frame.shape[1] 
+        self.frameWidth=frame.shape[1]
         self.on_zoomfit_clicked()
 
         self._update_frame(frame)
 
-        self.ui.statusbar.showMessage("Ready to Start, or redefine data or video") 
+        self.ui.statusbar.showMessage("Ready to Start, or redefine data or video")
         self.ui.startButton.setEnabled(True)
         self.ui.pauseButton.setEnabled(False)
         self.ui.horizontalSlider.setEnabled(True)
@@ -549,21 +552,21 @@ class MainForm(QMainWindow):
         if len(fileName[0])>0:
             self.data = Record(fileName[0])
             self.isdata=True
-            self.draw()  
-            self.ui.statusbar.showMessage("Select Video File")  
+            self.draw()
+            self.ui.statusbar.showMessage("Select Video File")
             # self.ui.openButton.setEnabled(True)
             self.openButtonPressed()
 
         else:
             return
 
-    def draw(self):              
-        
+    def draw(self):
+
         self.ax1.clear()
         # self.ax1.xaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M:%S.%f'))
         # self.ax1.xaxis.set_major_locator(matplotlib.dates.MicrosecondLocator(interval=100000))
         #self.ax.axis('off')
-        
+
         # data=self.data.values[1:,1:5]
         # data[:,1]= (data[:,1]-data[:,1].min())/(data[:,1].max()-data[:,1].min())
         # data[:,2]= (data[:,2]-data[:,2].min())/(data[:,2].max()-data[:,2].min())
@@ -578,24 +581,24 @@ class MainForm(QMainWindow):
 
         # self.ax1.plot(data[:,0],1.15*np.ones(data[:,0].shape),'k')
         # self.ax1.plot(data[:,0],2.25*np.ones(data[:,0].shape),'k')
-        
 
-        # self.ax1.set_xlim([self.data.values[1,1],self.data.values[-1,1]])       
 
-        # self.ax1.plot([self.data.values[1,1],self.data.values[1,1]],[0,3.4],'k',linewidth=2.0)    
-  
+        self.ax1.set_xlim([self.data.times[0], self.data.times[-1]])
+
+        # self.ax1.plot([self.data.values[1,1],self.data.values[1,1]],[0,3.4],'k',linewidth=2.0)
+
         start, end = self.ax1.get_xlim()
         # self.ax1.xaxis.set_ticks(np.arange(start+1, end-1, 5))
         # self.ax1.legend(loc='best',  framealpha=0.1,ncol=3)
-  
-        
+
+
         self.ui.bottomImage.canvas.draw()
 
-    def startButtonPressed(self):         
-        
+    def startButtonPressed(self):
+
         if self.isthreadActive:
-            return             
-                     
+            return
+
 
         self.ui.startButton.setEnabled(False)
 
@@ -604,15 +607,15 @@ class MainForm(QMainWindow):
             self.timer.start()
         else:
             self.timer=None
-        
+
         self.ui.pauseButton.setEnabled(True)
         self.isthreadActive=True
 
-    def pauseButtonPressed(self):        
+    def pauseButtonPressed(self):
 
          if not self.isthreadActive:
-            return 
-         self.ui.startButton.setEnabled(True)         
+            return
+         self.ui.startButton.setEnabled(True)
          self.ui.pauseButton.setEnabled(False)
          if not self.timer is None:
             self.timer.cancel()

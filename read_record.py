@@ -54,6 +54,9 @@ class Record:
             index = self.cur_pos
         time, p, pend, dets = self.ann[index]
         return time
+    
+    def get_mean_fps(self):
+        return len(self.times) * 1000 / (self.times[-1] - self.times[0])
         
 
 if __name__ == "__main__":
