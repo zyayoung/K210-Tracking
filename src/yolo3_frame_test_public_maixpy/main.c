@@ -240,6 +240,7 @@ int record_core1(void *ctx) {
         corelock_lock(&record_ctx.imlock);
         void *jfif = jfif_encode(record_ctx.bp);
         corelock_unlock(&record_ctx.imlock);
+
         corelock_lock(&record_ctx.frame_countlock);
         jfif_write(jfif, record_ctx.vid_file);
         jfif_free(jfif);
@@ -403,7 +404,7 @@ int main(void) {
         record_ctx.vid_file = &vid_file;
         register_core1(record_core1, NULL);
     }
-
+    
     uint64_t last_time = sysctl_get_time_us();
     while (1)
     {
@@ -412,12 +413,12 @@ int main(void) {
         dvp_clear_interrupt(DVP_STS_FRAME_START | DVP_STS_FRAME_FINISH);
         dvp_config_interrupt(DVP_CFG_START_INT_ENABLE | DVP_CFG_FINISH_INT_ENABLE, 1);
         while (g_dvp_finish_flag == 0);
+        if(enable_sd_card) corelock_lock(&record_ctx.frame_countlock);
 
         /* run detection */
         g_ai_done_flag= 0;
         kpu_run_kmodel(&detect_task, kpu_image.addr, DMAC_CHANNEL5, ai_done, NULL);
         while (!g_ai_done_flag) {};
-        if(enable_sd_card) corelock_lock(&record_ctx.frame_countlock);
         if(enable_sd_card) corelock_unlock(&record_ctx.imlock);
         float *output0, *output1;
         size_t output_size0, output_size1;
@@ -435,7 +436,7 @@ int main(void) {
 
         /* display result */
 
-        if(enable_sd_card) f_printf(&file, "T %d\n", sysctl_get_time_us()/1000);
+        if(enable_sd_card) f_printf(&file, "T %d %ld\n", sysctl_get_time_us()/1000, f_tell(record_ctx.vid_file));
         lcd_draw_picture(0, 0, 320, 224, (uint32_t *)display_image.addr);
         region_layer_draw_boxes(&detect_rl0, drawboxes);
         region_layer_draw_boxes(&detect_rl1, drawboxes);
