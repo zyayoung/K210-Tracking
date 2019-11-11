@@ -1,14 +1,18 @@
-# Kendryte K210 standalone SDK (with Mouse Tracking src)
+# Kendryte K210 Animal Tracking (Kendryte Standalone SDK)
+
+## Demo
+
+![demo](demo/IMG_20191104_125231.jpg)
 
 ## Train
 
-Train yolo model using this [repo](https://gitee.com/zyayoung/keras-yolo3/tree/rat/).
+Train yolo model using [darknet](https://pjreddie.com/darknet/yolo/) or this [repo](https://gitee.com/zyayoung/keras-yolo3/tree/rat/).
 
-To conver your keras model to kmodel, [MaixPy_scripts](https://github.com/sipeed/MaixPy_scripts) will be used.
+To conver your keras model to kmodel, [MaixPy_scripts](https://github.com/sipeed/MaixPy_scripts) or [nncase](https://github.com/kendryte/nncase/tree/v0.1.0-rc5) can be used.
 
+First prepare your `yolo.h5` file, then
 ```bash
-python save.py
-tflite_convert --keras_model_file=full.h5 --output_file=yolo.tflite
+tflite_convert --keras_model_file=yolo.h5 --output_file=yolo.tflite
 ./tflite2kmodel.sh yolo.tflite
 ```
 
@@ -29,21 +33,11 @@ cmake .. -DPROJ=yolo3_frame_test_public_maixpy -DTOOLCHAIN=/opt/riscv-toolchain/
 
 - Windows
 
-Download and install latest CMake.
-
-[Download cmake-3.14.1-win64-x64.msi](https://github.com/Kitware/CMake/releases/download/v3.14.1/cmake-3.14.1-win64-x64.msi)
-
-Download and install latest toolchain.
-
-[Download kendryte-toolchain-win-i386-8.2.0-20190409.tar.xz](https://github.com/kendryte/kendryte-gnu-toolchain/releases/download/v8.2.0-20190409/kendryte-toolchain-win-i386-8.2.0-20190409.tar.xz)
-
-Open a Windows Powershell, cd to Project directory.
+Download and install CMake and the latest toolchain.
 
 ```powershell
-$env:Path="E:\kendryte-toolchain\bin;C:\Program Files\CMake\bin" +  $env:Path
-
 mkdir build && cd build
-cmake -G "MinGW Makefiles" .. -DPROJ=yolo3_frame_test_public_maixpy -DTOOLCHAIN=
+cmake -G "MinGW Makefiles" .. -DPROJ=yolo3_frame_test_public_maixpy -DTOOLCHAIN=/path/to/toolchain/bin
 make
 ```
 
