@@ -1,8 +1,15 @@
-# Kendryte K210 Animal Tracking (Kendryte Standalone SDK)
+# Kendryte K210 Animal Tracking
+
+Kendryte Standalone SDK
 
 ## Demo
 
 ![demo](demo/IMG_20191104_125231.jpg)
+
+## Analysis tool
+
+Now available [TrackingAnalyze](https://github.com/zyayoung/TrackingAnalyze)
+![](https://raw.githubusercontent.com/zyayoung/TrackingAnalyze/master/demo/demo2.png)
 
 ## Train
 
